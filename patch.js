@@ -11,14 +11,14 @@ const targets = [
 for (const file of targets) {
   if (fs.existsSync(file)) {
     let content = fs.readFileSync(file, 'utf8');
-    // 放行所有端口格式
+    // 1. 放行所有端口格式
     content = content.replace(
       /\/\^http:\\\/\\\/\(\?:localhost\|127\\\.0\\\.0\\\.1\|\\\[::1\\\]\):\(\[0-9\]\+\)\\\/\?\$/g,
-      '/^http:\\/\\/(?:[a-zA-Z0-9.-]+|\\[[a-fA-F0-9:]+\\]):([0-9]+)\\/?$'
+      '/^http:\\/\\/(?:[a-zA-Z0-9.-]+|\\[[a-fA-F0-9:]+\\]):([0-9]+)\\/?$/'
     );
-    // 放行 hostname 检查
+    // 2. 放行 hostname 检查 (兼容单行及多行换行格式)
     content = content.replace(
-      "!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)",
+      /!\[[\s\S]*?\]\.includes\(url\.hostname\)/g,
       "false"
     );
     fs.writeFileSync(file, content, 'utf8');
