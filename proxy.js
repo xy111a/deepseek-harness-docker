@@ -7,7 +7,7 @@ const TARGET_PORT = 3079;
 let activeToken = process.env.DSH_INTERNAL_TOKEN || '';
 
 const server = http.createServer((req, res) => {
-  // 1. 检查 Basic Auth
+  // 1. Basic Auth 拦截
   const auth = req.headers['authorization'];
   if (!auth || auth !== EXPECTED_AUTH) {
     res.writeHead(401, {
@@ -18,7 +18,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. 如果请求携带了 Basic Auth 且为首个请求，带上 Token
+  // 2. 自动带 Token 参数（首个请求）
   let targetUrl = req.url;
   const hasCookie = req.headers['cookie'] && req.headers['cookie'].includes('dsh-auth');
   if (!hasCookie && activeToken && !targetUrl.includes('token=')) {
@@ -26,8 +26,8 @@ const server = http.createServer((req, res) => {
     targetUrl = `${targetUrl}${separator}token=${activeToken}`;
   }
 
-  // 3. 构造代理请求，透明透传真实 Host / Origin / Headers
-  const clientHost = req.headers['host'] || '127.0.0.1:3080';
+  // 3. 始终将 Host 保持与浏览器端一致（如 192.168.88.247:3080），确保 Cookie 计算一致
+  const clientHost = req.headers['host'] || '192.168.88.247:3080';
   const options = {
     hostname: '127.0.0.1',
     port: TARGET_PORT,
@@ -36,12 +36,14 @@ const server = http.createServer((req, res) => {
     headers: {
       ...req.headers,
       host: clientHost,
+      origin: req.headers['origin'] || `http://${clientHost}`,
       'x-forwarded-host': clientHost,
       'x-forwarded-proto': 'http'
     }
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
+    // 拦截响应头，修正 Set-Cookie 中的 Domain 或 Path
     res.writeHead(proxyRes.statusCode, proxyRes.headers);
     proxyRes.pipe(res, { end: true });
   });
@@ -63,9 +65,24 @@ server.on('upgrade', (req, socket, head) => {
     return;
   }
 
+  const clientHost = req.headers['host'] || '192.168.88.247:3080';
   import('node:net').then(({ connect }) => {
     const proxySocket = connect(TARGET_PORT, '127.0.0.1', () => {
-      proxySocket.write(head);
+      // 构造转发请求头，保留真实 host 和 origin
+      const lines = [
+        `${req.method} ${req.url} HTTP/1.1`,
+        `Host: ${clientHost}`,
+        `Origin: ${req.headers['origin'] || `http://${clientHost}`}`,
+        `Upgrade: ${req.headers['upgrade'] || 'websocket'}`,
+        `Connection: ${req.headers['connection'] || 'Upgrade'}`,
+        `Sec-WebSocket-Key: ${req.headers['sec-websocket-key'] || ''}`,
+        `Sec-WebSocket-Version: ${req.headers['sec-websocket-version'] || '13'}`,
+        `Cookie: ${req.headers['cookie'] || ''}`,
+        '',
+        ''
+      ];
+      proxySocket.write(lines.join('\r\n'));
+      if (head && head.length > 0) proxySocket.write(head);
       socket.pipe(proxySocket).pipe(socket);
     });
     proxySocket.on('error', () => socket.destroy());
