@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # 全局安装最新版 DeepSeek Harness 运行时
 RUN npm install -g --no-audit --no-fund @deepseek-ai/dsh@latest
 
+# 解除 DeepSeek 官方登录仅限 localhost/127.0.0.1 的硬编码限制，支持局域网 IP 登录
+COPY patch.sh /tmp/patch.sh
+RUN chmod +x /tmp/patch.sh && /tmp/patch.sh && rm /tmp/patch.sh
+
 # ── 阶段 2: 极简生产运行环境 ──
 FROM node:22-slim
 
