@@ -14,11 +14,10 @@ RUN npm install -g --no-audit --no-fund @deepseek-ai/dsh@latest
 # ── 阶段 2: 极简生产运行环境 ──
 FROM node:22-slim
 
-# 安装运行时必需工具：网络转发工具 socat, 系统工具 curl, git, python3
+# 安装运行时必需工具：系统工具 curl, git, python3
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
-    socat \
     ca-certificates \
     python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -29,16 +28,19 @@ COPY --from=builder /usr/local/ /usr/local/
 ENV DSH_HOME=/data \
     HOME=/data \
     NODE_ENV=production \
-    TZ=Asia/Shanghai
+    TZ=Asia/Shanghai \
+    AUTH_USER=huajun \
+    AUTH_PASS=0099
 
 WORKDIR /workspace
 
+COPY proxy.js /usr/local/bin/proxy.js
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 3080
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=20s \
-  CMD curl -f http://127.0.0.1:3080/ || exit 1
+  CMD curl -u "${AUTH_USER}:${AUTH_PASS}" -f http://127.0.0.1:3080/ || exit 1
 
 ENTRYPOINT ["entrypoint.sh"]
