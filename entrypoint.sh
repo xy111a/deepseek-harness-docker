@@ -8,9 +8,9 @@ echo "=== Starting DeepSeek Harness with Basic Auth ==="
 echo "DSH_HOME: $DSH_HOME"
 echo "Username: ${AUTH_USER:-huajun}"
 
-# 1. 启动 dsh 后台进程并捕获其生成的内部 Token
+# 1. 启动 dsh 进程，允许代理的外部 IP 访问 --trusted-host
 echo "Launching dsh runtime in background..."
-dsh web --port 3079 "$@" > /tmp/dsh.log 2>&1 &
+dsh web --port 3079 --no-open --trusted-host 192.168.88.247:3080 192.168.88.247 127.0.0.1:3080 "$@" > /tmp/dsh.log 2>&1 &
 DSH_PID=$!
 
 # 等待 Token 出现

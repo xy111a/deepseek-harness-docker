@@ -6,10 +6,6 @@ const EXPECTED_AUTH = 'Basic ' + Buffer.from(`${USER}:${PASS}`).toString('base64
 const TARGET_PORT = 3079;
 let activeToken = process.env.DSH_INTERNAL_TOKEN || '';
 
-export function setToken(token) {
-  activeToken = token;
-}
-
 const server = http.createServer((req, res) => {
   // 1. 检查 Basic Auth
   const auth = req.headers['authorization'];
@@ -22,7 +18,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // 2. 如果请求携带了 Basic Auth，为初次请求自动注入内部认证 Token
+  // 2. 如果请求携带了 Basic Auth 且为首个请求，带上 Token
   let targetUrl = req.url;
   const hasCookie = req.headers['cookie'] && req.headers['cookie'].includes('dsh-auth');
   if (!hasCookie && activeToken && !targetUrl.includes('token=')) {
@@ -30,6 +26,8 @@ const server = http.createServer((req, res) => {
     targetUrl = `${targetUrl}${separator}token=${activeToken}`;
   }
 
+  // 3. 构造代理请求，透明透传真实 Host / Origin / Headers
+  const clientHost = req.headers['host'] || '127.0.0.1:3080';
   const options = {
     hostname: '127.0.0.1',
     port: TARGET_PORT,
@@ -37,7 +35,9 @@ const server = http.createServer((req, res) => {
     method: req.method,
     headers: {
       ...req.headers,
-      host: '127.0.0.1:3079'
+      host: clientHost,
+      'x-forwarded-host': clientHost,
+      'x-forwarded-proto': 'http'
     }
   };
 
